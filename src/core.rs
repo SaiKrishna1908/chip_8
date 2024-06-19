@@ -10,13 +10,8 @@ pub struct CPU {
 
 impl CPU {
 
-    pub fn get_memory(&mut self) -> [u8; 0x1000] {
-        self.memory
-    }
-
-    /*
-        Initialize CPU
-     */
+    /// Initialize a new CPU instance
+    /// with default values
     pub fn new() -> CPU {
         CPU {
             memory: [0; 4096],
@@ -25,38 +20,107 @@ impl CPU {
         }
     }
 
+    /// Returns the OP-Code according to Chip-8 instruction set
+    /// Each instruction has a size of u8
+    /// Combine two u8 instructions to create the final OP-Code
     fn read_op(&mut self) -> u16 {
         let p = self.position_in_memory;
+
+        // read instruction from memory
         let op_byte1 = self.memory[p] as u16;
         let op_byte2 = self.memory[p+1] as u16;
+
+        // reset memory to 0
+        self.memory[p] = 0;
+        self.memory[p+1] = 0;
+
+        // increment memory pointer
         self.position_in_memory += 2;
+
         op_byte1 << 8 | op_byte2
     }
 
-    /*
-        Load the addition op code to current_operation
-        u16 -> ____ ____ ____ ____
-     */
+    /// Simulates the cpu
+    /// loop until all instructions are carried out
+    /// Load the addition op code to current_operation
+    /// u16 -> ____ ____ ____ ____
+    ///
+    /// An instruction in Chip-8 is of 16 bits
+    /// which is divided into two bytes - High Byte (HB) and Low Byte (LB)
+    /// Each Byte is further divided into two Nibbles - High Nibble (HN) and Low Nibble (LN)
+    ///
+    /// HBHN  HBLN  LBHN  LBLN
+    /// ----  ----  ----  ----
     pub fn run(&mut self) {
-        let op = self.read_op();
 
-        let c = ((op & 0xf000) >> 12) as u8;
-        let x = ((op & 0x0f00) >> 8) as u8;
-        let y = ((op & 0x00f0) >> 4) as u8;
-        let d = ((op & 0x000f) >> 0) as u8;
+        loop {
+            let op = self.read_op();
 
-        match (c,x,y,d) {
-            (0, 0, 0, 0) => { return; },
-            (0x8, _, _, 0x4) => {
-                self.add_xy(x, y)
-            },
-            _ => todo!()
+            /// Extract HN of HB
+            let c = ((op & 0xf000) >> 12) as u8;
+
+            /// Extract LN of HB
+            let x = ((op & 0x0f00) >> 8) as u8;
+
+            /// Extract HN of LB
+            let y = ((op & 0x00f0) >> 4) as u8;
+
+            /// Extract LN of LB
+            let d = ((op & 0x000f) >> 0) as u8;
+
+            match (c,x,y,d) {
+                (0, 0, 0, 0) => { break; },
+                (0x8, a, b, 0x1) => {
+                    self.or_xy(a,b)
+                }
+                (0x8, a, b, 0x2) => {
+                    self.and_xy(a,b)
+                },
+                (0x8, a, b, 0x4) => {
+                    self.add_xy(a, b)
+                },
+                (0x8, a, b, 0x5) => {
+                    self.sub_xy(a, b)
+                }
+                _ => todo!()
+            }
         }
     }
 
-    /*
-        Sets value in register x to value in register x + register y
-     */
+    /// Xor of two values x, y and store in x
+    /// OP-CODE: 0X8xy2
+    ///
+    /// # Arguments
+    /// * `x` - index of first register
+    /// * `y` - index of second register
+    fn or_xy(&mut self, x: u8, y: u8) {
+        let arg1 = self.registers[x as usize];
+        let arg2 = self.registers[y as usize];
+
+        self.registers[x as usize] = arg1 | arg2;
+    }
+
+    /// And of two values x, y and store in x
+    /// OP-CODE: 0x8xy1
+    ///
+    /// # Arguments
+    /// * `x` - index of first register
+    /// * `y` - index of second register
+    fn and_xy(&mut self, x: u8, y: u8) {
+        let arg1 = self.registers[x as usize];
+        let arg2 = self.registers[y as usize];
+
+        self.registers[x as usize] = arg1 & arg2;
+    }
+
+
+    /// Add values at register x and register y and stores in register x.
+    /// In case of overflow register 15 is set to high
+    /// OP-CODE: 0X8xy4
+    ///
+    /// # Arguments
+    /// * `x` - index of first register
+    /// * `y` - index of second register
     fn add_xy(&mut self, x: u8, y: u8)  {
         let arg1 = self.registers[x as usize];
         let arg2 = self.registers[y as usize];
@@ -64,6 +128,29 @@ impl CPU {
         let (val, overflow) = arg1.overflowing_add(arg2);
 
         self.registers[x as usize] = val;
+
+        if overflow {
+            self.registers[0xf] = 1;
+        } else {
+            self.registers[0xf] = 0;
+        }
+    }
+
+    /// Subtract values at register x and register y and stores in register x
+    /// In case of negative value register 15 is set to high
+    /// OP-CODE: 0X8xy5
+    ///
+    /// # Arguments
+    /// * `x` - index of first register
+    /// * `y` - index of second register
+    fn sub_xy(&mut self, x: u8, y: u8) {
+        let arg1 = self.registers[x as usize];
+        let arg2 = self.registers[y as usize];
+
+
+        let (value, overflow) = arg1.overflowing_sub(arg2);
+
+        self.registers[x as usize] = value;
 
         if overflow {
             self.registers[0xf] = 1;
