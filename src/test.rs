@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub mod tests {
+    use std::cmp::{max, min};
     use crate::core::{CPU, Op};
 
     #[test]
@@ -97,13 +98,11 @@ pub mod tests {
     pub fn chip8_sub_with_negative() {
         let mut cpu = CPU::new();
 
-        let u8_max = 255;
+        let a = 10u8;
+        let b = 15u8;
 
-        let a: i16 = 10;
-        let b: i16 = 15;
-
-        cpu.registers[0] = a as u8;
-        cpu.registers[1] = b as u8;
+        cpu.registers[0] = 10u8;
+        cpu.registers[1] = 15u8;
 
         cpu.memory[0] = 0x80;
         cpu.memory[1] = 0x15;
@@ -111,7 +110,7 @@ pub mod tests {
         cpu.run();
 
         assert!(cpu.registers[0] < cpu.registers[1]);
-        assert_eq!(i16::from(cpu.registers[0]), (255 - (a - b) + 1));
+        assert_eq!(cpu.registers[0], max(a,b) - min(a,b));
         assert_eq!(cpu.registers[15], 1);
     }
 

@@ -150,12 +150,14 @@ impl CPU {
 
         let (value, overflow) = arg1.overflowing_sub(arg2);
 
-        self.registers[x as usize] = value;
+        let max_u8_size = 255;
 
         if overflow {
             self.registers[0xf] = 1;
+            self.registers[x as usize] = max_u8_size - value + 1;
         } else {
             self.registers[0xf] = 0;
+            self.registers[x as usize] = value;
         }
     }
 }
