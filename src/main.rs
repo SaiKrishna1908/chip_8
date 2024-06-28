@@ -1,7 +1,6 @@
-use crate::core::{CPU, Op};
-
 mod core;
 mod test;
+mod utils;
 
 fn main() {
 

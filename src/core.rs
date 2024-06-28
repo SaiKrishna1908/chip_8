@@ -1,11 +1,9 @@
-pub enum Op {
-    ADD
-}
-
 pub struct CPU {
     pub memory: [u8; 0x1000],
     position_in_memory: usize,
-    pub registers: [u8; 16]
+    pub registers: [u8; 16],
+    pub stack: [u16; 16],
+    stack_pointer: usize
 }
 
 impl CPU {
@@ -16,7 +14,9 @@ impl CPU {
         CPU {
             memory: [0; 4096],
             registers: [0; 16],
-            position_in_memory: 0
+            position_in_memory: 0,
+            stack: [0; 16],
+            stack_pointer: 0
         }
     }
 
@@ -30,9 +30,10 @@ impl CPU {
         let op_byte1 = self.memory[p] as u16;
         let op_byte2 = self.memory[p+1] as u16;
 
-        // reset memory to 0
-        self.memory[p] = 0;
-        self.memory[p+1] = 0;
+        // Don't reset memory to 0 because function definition is stored in memory and will be
+        // made to 0
+        // self.memory[p] = 0;
+        // self.memory[p+1] = 0;
 
         // increment memory pointer
         self.position_in_memory += 2;
@@ -68,8 +69,13 @@ impl CPU {
             /// Extract LN of LB
             let d = ((op & 0x000f) >> 0) as u8;
 
+            let nnn = ((op & 0x0fff));
             match (c,x,y,d) {
                 (0, 0, 0, 0) => { break; },
+                (0 , 0, 0xE, 0xE) => self.ret(),
+                (0x2, a, b , c) => {
+                    self.call(nnn);
+                },
                 (0x8, a, b, 0x1) => {
                     self.or_xy(a,b)
                 }
@@ -159,5 +165,38 @@ impl CPU {
             self.registers[0xf] = 0;
             self.registers[x as usize] = value;
         }
+    }
+
+    /// Store the current memory location addr on the stack.
+    /// Increment the stack pointer
+    /// Set the current memory location to the intended memory address
+    fn call(&mut self, addr: u16) {
+        // stack store the current memory address which will be used once the func call has returned
+        let sp = self.stack_pointer;
+        let stack = &mut self.stack;
+
+        if sp > stack.len() {
+            panic!("Stack Overflow, you fucked up!!")
+        }
+
+
+        stack[sp] = self.position_in_memory as u16;
+
+        // increment stack pointer incase if nested function calls are there
+        self.stack_pointer+=1;
+
+        // goto the function address and execute the function
+        self.position_in_memory = addr as  usize;
+    }
+
+    /// Return the value from function and set the position_in_memory to value that is top on stack
+    fn ret(&mut self) {
+        if self.stack_pointer == 0 {
+            panic!("Stack underflow!!");
+        }
+
+        self.stack_pointer -= 1;
+        let call_addr = self.stack[self.stack_pointer];
+        self.position_in_memory = call_addr as usize;
     }
 }
